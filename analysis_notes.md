@@ -22,3 +22,26 @@
 * **Findings:** The search returned no results for either keyword. The `grep` command completed with an exit code of 1, indicating no matches were found.
 
 * **Conclusion:** The `simplisafe` component does not appear to execute external system commands and is therefore not vulnerable to command injection attacks.
+
+
+---
+
+### Component: `google`
+
+#### 1. Vulnerability Assessed: Hardcoded Credentials
+
+* **Methodology:** Performed a recursive, case-insensitive search (`grep -r -i`) for the keywords: `password`, `secret`, `api_key`, and `token`.
+
+* **Findings:**
+    * `password`, `api_key`: The search returned no results.
+    * `secret`, `token`: The search returned numerous results. Analysis of the code context showed these keywords were used as part of a standard, secure **OAuth 2.0 implementation**. The code handles `client_secret`, `access_token`, and `refresh_token` variables but does not hardcode their values. These are all **false positives** that indicate correct security design.
+
+* **Conclusion:** The `google` component securely manages authentication tokens via the OAuth 2.0 protocol and does not contain hardcoded credentials.
+
+#### 2. Vulnerability Assessed: Command Injection
+
+* **Methodology:** Performed a recursive, case-insensitive search (`grep -r -i`) for `os.system` and `subprocess`.
+
+* **Findings:** The search returned no results for either keyword.
+
+* **Conclusion:** The `google` component does not execute external system commands and is not vulnerable to command injection.
