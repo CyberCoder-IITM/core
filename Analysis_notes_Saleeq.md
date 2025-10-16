@@ -256,5 +256,42 @@ Following the successful PoC, post-exploitation techniques were performed to dem
 
 ---
 
+### Component: `backup`
+* **Vulnerability Assessed:** Path Traversal / Zip Slip (CWE-22).
+* **Methodology:** The component was identified as a high-priority target from the global `grep` search due to its use of `tarfile.open()`. A manual audit of `homeassistant/components/backup/util.py` was conducted to assess its vulnerability to "Zip Slip" attacks during backup restoration.
+
+* **Analysis:**
+    The "Zip Slip" vulnerability occurs when an application unsafely extracts an archive. An attacker can craft a file with a malicious path (e.g., `../../etc/passwd`), causing the application to traverse up the directory tree and overwrite a critical system file.
+
+    **Example of Vulnerable Code:**
+    A vulnerable implementation would use the standard `tarfile` library without validating the file paths inside the archive.
+    ```python
+    # WARNING: VULNERABLE CODE
+    import tarfile
+    with tarfile.open("malicious_archive.tar") as archive:
+        # This blindly extracts files to their specified paths
+        archive.extractall("/tmp/restore/")
+    ```
+
+    **Home Assistant's Implementation:**
+    The audit revealed that while the `backup` component processes `.tar` files, it avoids this vulnerability by using a security-hardened library called `securetar` instead of the standard `tarfile` library for extraction.
+
+    ```python
+    # In homeassistant/components/backup/util.py
+    from securetar import SecureTarFile, SecureTarReadError
+
+    # ... The code wraps the file object in the SecureTarFile class
+    istf = SecureTarFile(
+        # ... options ...
+        fileobj=input_tar.extractfile(obj),
+    )
+    # All further operations happen through this secure object.
+    with istf.decrypt(obj) as decrypted:
+        # ...
+    ```
+
+* **Conclusion:**  **Secure**. The proactive use of the `SecureTarFile` library is a direct and effective mitigation against Zip Slip vulnerabilities. This library is designed to sanitize archive member paths and prevent extraction outside of the target directory, demonstrating mature security awareness by the developers.
+
+---
 
 
